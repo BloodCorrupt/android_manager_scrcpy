@@ -9,7 +9,7 @@ import {PrismaClient} from "@prisma/client";
 import {config} from "./config.js";
 
 // 不需要认证的路由前缀
-const PUBLIC_PATHS = ["/auth/", "/health"];
+const PUBLIC_PATHS = ["/auth/", "/health", "/assets/", "/vite.svg"];
 
 /**
  * 检查路径是否为公开路径（不需要认证）
