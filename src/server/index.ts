@@ -97,13 +97,7 @@ try {
     process.exit(1);
 }
 
-// 健康检查
-fastify.get("/", async () => {
-    return {
-        message: "Fastify + Prisma + SQLite 正常运行！",
-        uptime: process.uptime()
-    };
-});
+// 健康检查路由保留 /health
 
 fastify.get("/health", async () => {
     try {
