@@ -530,6 +530,53 @@ export default function DeviceDetail() {
                                 </DialogFooter>
                             </DialogContent>
                         </Dialog>
+                        <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+                            <DialogTrigger asChild>
+                                <Button variant="ghost" size="icon" title="Stream Settings">
+                                    <Settings className="h-4 w-4" />
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                                <DialogHeader>
+                                    <DialogTitle>Stream Settings</DialogTitle>
+                                    <DialogDescription>Configure Scrcpy bitrate and resolution (Requires restart)</DialogDescription>
+                                </DialogHeader>
+                                <div className="grid gap-4 py-4">
+                                    <div className="grid gap-2">
+                                        <Label>Video Bitrate</Label>
+                                        <Select value={bitrate.toString()} onValueChange={(v) => setBitrate(Number(v))}>
+                                            <SelectTrigger><SelectValue placeholder="Select Bitrate" /></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="16777216">16 Mbps</SelectItem>
+                                                <SelectItem value="8388608">8 Mbps (Default)</SelectItem>
+                                                <SelectItem value="4194304">4 Mbps</SelectItem>
+                                                <SelectItem value="2097152">2 Mbps</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="grid gap-2">
+                                        <Label>Max Resolution</Label>
+                                        <Select value={maxSize.toString()} onValueChange={(v) => setMaxSize(Number(v))}>
+                                            <SelectTrigger><SelectValue placeholder="Select Resolution" /></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="0">Native (Default)</SelectItem>
+                                                <SelectItem value="1920">1080p</SelectItem>
+                                                <SelectItem value="1280">720p</SelectItem>
+                                                <SelectItem value="854">480p</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                </div>
+                                <DialogFooter>
+                                    <Button onClick={() => {
+                                        localStorage.setItem('scrcpy-bitrate', bitrate.toString());
+                                        localStorage.setItem('scrcpy-maxSize', maxSize.toString());
+                                        setSettingsOpen(false);
+                                        window.location.reload();
+                                    }}>Apply & Restart</Button>
+                                </DialogFooter>
+                            </DialogContent>
+                        </Dialog>
                         <Button
                             variant="ghost"
                             size="icon"

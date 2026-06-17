@@ -3,6 +3,7 @@
  */
 
 import type {FastifyInstance, FastifyRequest} from "fastify";
+// @ts-ignore
 import type {PrismaClient} from "@prisma/client";
 import type {DeviceRegisterData} from "@/types/device.types.ts";
 import {config} from "../config.js";
