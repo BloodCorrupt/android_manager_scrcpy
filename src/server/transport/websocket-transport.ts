@@ -51,7 +51,7 @@ export class WebSocketTransport implements AdbTransport {
         const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
         
         const socket = new WebSocketStream(
-            `${wsProtocol}://${wsHost}/device/${this.serial}?service=${encodeURIComponent(service)}`
+            `${wsProtocol}://${wsHost}/api/device/${this.serial}?service=${encodeURIComponent(service)}`
         );
         const open = await socket.opened;
         this.#sockets.add(socket);

@@ -85,7 +85,10 @@ export default function DeviceDetail() {
         if (!serial) return;
         setIsLoading(true);
         try {
-            await fetch(`/device/${serial}/reconnect`, { method: 'POST' });
+            const isDev = import.meta.env.DEV;
+            const apiPort = import.meta.env.VITE_SERVER_PORT || 8080;
+            const apiHost = isDev ? `${window.location.hostname}:${apiPort}` : window.location.host;
+            await fetch(`${window.location.protocol}//${apiHost}/api/device/${serial}/reconnect`, { method: 'POST' });
             window.location.reload();
         } catch (e) {
             console.error('Reconnect failed', e);
