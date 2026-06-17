@@ -33,4 +33,42 @@ npx prisma db push
 echo "Building the frontend..."
 npm run build
 
-echo "Installation complete! You can now start the application using ./start.sh"
+echo "Setting up systemd service..."
+
+SERVICE_FILE="/etc/systemd/system/android-manager.service"
+PROJECT_DIR="$(pwd)"
+USER_NAME="$(whoami)"
+
+# Create the service file content
+cat << EOF | sudo tee $SERVICE_FILE > /dev/null
+[Unit]
+Description=Android Manager Scrcpy Service
+After=network.target
+
+[Service]
+Type=simple
+User=$USER_NAME
+WorkingDirectory=$PROJECT_DIR
+ExecStart=$PROJECT_DIR/start.sh
+Restart=on-failure
+RestartSec=5
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=android-manager
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+echo "Reloading systemd daemon..."
+sudo systemctl daemon-reload
+
+echo "Enabling Android Manager service to run on boot..."
+sudo systemctl enable android-manager.service
+
+echo "Starting Android Manager service..."
+sudo systemctl restart android-manager.service
+
+echo "Installation complete! The application is now running in the background as a systemd service."
+echo "You can check the logs anytime using: sudo journalctl -u android-manager -f"
+
