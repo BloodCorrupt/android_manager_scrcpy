@@ -8,7 +8,7 @@ import {useState, useCallback} from 'react';
 // In development, point to the backend port (from .env or 8080). In production, use relative paths.
 const isDev = import.meta.env.DEV;
 const apiPort = import.meta.env.VITE_SERVER_PORT || 8080;
-const API_BASE = isDev ? `${window.location.protocol}//${window.location.hostname}:${apiPort}` : '';
+const API_BASE = isDev ? `${window.location.protocol}//${window.location.hostname}:${apiPort}/api` : '/api';
 
 interface AuthState {
     isAuthenticated: boolean;
