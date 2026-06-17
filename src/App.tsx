@@ -73,7 +73,12 @@ function DeviceList() {
         let socket: WebSocket | null = null;
 
         try {
-            socket = new WebSocket(`${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.hostname}:8080/devices`);
+            const isDev = import.meta.env.DEV;
+            const apiPort = import.meta.env.VITE_SERVER_PORT || 8080;
+            const wsHost = isDev ? `${window.location.hostname}:${apiPort}` : window.location.host;
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+            
+            socket = new WebSocket(`${wsProtocol}://${wsHost}/devices`);
 
             socket.addEventListener('open', () => {
                 setIsLoading(false);

@@ -114,7 +114,12 @@ export default function DeviceDetail() {
 
         const initializeDevice = async () => {
             try {
-                const response = await fetch(`${window.location.protocol}//${window.location.hostname}:8080/device/${serial}`);
+                const isDev = import.meta.env.DEV;
+                const apiPort = import.meta.env.VITE_SERVER_PORT || 8080;
+                const wsHost = isDev ? `${window.location.hostname}:${apiPort}` : window.location.host;
+                const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+                
+                const response = await fetch(`${window.location.protocol}//${wsHost}/device/${serial}`);
                 if (!response.ok) {
                     throw new Error(`Failed to get device info: ${response.status}`);
                 }

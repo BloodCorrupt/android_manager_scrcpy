@@ -8,7 +8,7 @@ export const config = {
     // 服务器配置
     server: {
         host: process.env.SERVER_HOST || "0.0.0.0",
-        port: parseInt(process.env.SERVER_PORT || "8080", 10),
+        port: parseInt(process.env.VITE_SERVER_PORT || process.env.SERVER_PORT || "8080", 10),
     },
     
     // ADB 服务器配置
