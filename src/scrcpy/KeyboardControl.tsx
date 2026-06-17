@@ -141,6 +141,11 @@ export function KeyboardControl({client, enabled}: KeyboardControlProps) {
         keyboardInjectorRef.current = keyboard;
 
         const handleKeyDown = async (e: KeyboardEvent) => {
+            // Ignore events if user is typing in an input field or textarea
+            if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+                return;
+            }
+
             // 特殊处理：Ctrl+V 粘贴剪贴板内容
             if ((e.ctrlKey || e.metaKey) && e.code === 'KeyV') {
                 e.preventDefault();
@@ -177,6 +182,11 @@ export function KeyboardControl({client, enabled}: KeyboardControlProps) {
         };
 
         const handleKeyUp = async (e: KeyboardEvent) => {
+            // Ignore events if user is typing in an input field or textarea
+            if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+                return;
+            }
+
             // Ctrl+V 在 keydown 中已处理，keyup 时直接返回
             if ((e.ctrlKey || e.metaKey) && e.code === 'KeyV') {
                 e.preventDefault();
