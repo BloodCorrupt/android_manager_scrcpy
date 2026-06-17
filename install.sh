@@ -25,7 +25,7 @@ else
 fi
 
 echo "Installing project dependencies..."
-npm install
+npm install --no-audit --no-fund --loglevel info
 
 echo "Setting up the database..."
 npx prisma db push

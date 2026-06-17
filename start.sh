@@ -9,7 +9,7 @@ cd "$(dirname "$0")"
 # Check if node modules exist
 if [ ! -d "node_modules" ]; then
     echo "Dependencies not found. Running npm install..."
-    npm install
+    npm install --no-audit --no-fund --loglevel info
 fi
 
 # Build the frontend if the dist folder doesn't exist
