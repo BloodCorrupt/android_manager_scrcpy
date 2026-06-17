@@ -8,7 +8,7 @@ echo "Updating package lists..."
 sudo apt-get update
 
 echo "Installing adb and essential tools..."
-sudo apt-get install -y adb curl build-essential
+sudo apt-get install -y adb curl build-essential openssl
 
 # Install Node.js 20.x if not installed or outdated
 NODE_MAJOR=""
