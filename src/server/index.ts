@@ -59,7 +59,7 @@ if (fs.existsSync(distPath)) {
     
     // Fallback for SPA routing
     fastify.setNotFoundHandler((request, reply) => {
-        if (request.method === 'GET' && !request.url.startsWith('/api/') && !request.url.startsWith('/auth/') && !request.url.startsWith('/device')) {
+        if (request.method === 'GET' && !request.url.startsWith('/api/') && !request.url.startsWith('/auth/')) {
             return reply.sendFile('index.html');
         }
         reply.status(404).send({
@@ -120,18 +120,18 @@ fastify.get("/health", async () => {
 // 注册认证路由（公开路由，不需要认证）
 await fastify.register(async (fastify) => {
     await authRoutes(fastify, prisma);
-});
+}, { prefix: '/api' });
 
 // 注册认证中间件（保护后续所有路由）
 registerAuthMiddleware(fastify as any, prisma);
 
 await fastify.register(async (fastify) => {
     await deviceRoutes(fastify, prisma);
-});
+}, { prefix: '/api' });
 
 await fastify.register(async (fastify) => {
     await adbRoutes(fastify);
-});
+}, { prefix: '/api' });
 
 // 全局错误处理
 fastify.setErrorHandler((error, request, reply) => {

@@ -145,7 +145,7 @@ export default function DeviceDetail() {
                 const apiPort = import.meta.env.VITE_SERVER_PORT || 8080;
                 const wsHost = isDev ? `${window.location.hostname}:${apiPort}` : window.location.host;
                 
-                const response = await fetch(`${window.location.protocol}//${wsHost}/device/${serial}`);
+                const response = await fetch(`${window.location.protocol}//${wsHost}/api/device/${serial}`);
                 if (!response.ok) {
                     throw new Error(`Failed to get device info: ${response.status}`);
                 }

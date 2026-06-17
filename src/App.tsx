@@ -78,7 +78,7 @@ function DeviceList() {
             const apiPort = import.meta.env.VITE_SERVER_PORT || 8080;
             const apiHost = isDev ? `${window.location.hostname}:${apiPort}` : window.location.host;
             
-            await fetch(`${window.location.protocol}//${apiHost}/device/${serial}`, { method: 'DELETE' });
+            await fetch(`${window.location.protocol}//${apiHost}/api/device/${serial}`, { method: 'DELETE' });
             // Devices will update via websocket
         } catch (e) {
             console.error('Failed to remove device', e);
@@ -92,7 +92,7 @@ function DeviceList() {
             const apiPort = import.meta.env.VITE_SERVER_PORT || 8080;
             const apiHost = isDev ? `${window.location.hostname}:${apiPort}` : window.location.host;
             
-            await fetch(`${window.location.protocol}//${apiHost}/device/scan`, { method: 'POST' });
+            await fetch(`${window.location.protocol}//${apiHost}/api/device/scan`, { method: 'POST' });
         } catch (e) {
             console.error('Scan failed', e);
         } finally {
@@ -109,7 +109,7 @@ function DeviceList() {
             const wsHost = isDev ? `${window.location.hostname}:${apiPort}` : window.location.host;
             const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
             
-            socket = new WebSocket(`${wsProtocol}://${wsHost}/devices`);
+            socket = new WebSocket(`${wsProtocol}://${wsHost}/api/devices`);
 
             socket.addEventListener('open', () => {
                 setIsLoading(false);

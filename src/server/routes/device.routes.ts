@@ -13,7 +13,7 @@ import {Socket} from "net";
 export async function deviceRoutes(fastify: FastifyInstance, prisma: PrismaClient) {
     
     // 设备注册接口
-    fastify.post("/register", {
+    fastify.post("/device/register", {
         schema: {
             description: "注册或更新设备信息",
             tags: ["device"],
@@ -68,7 +68,7 @@ export async function deviceRoutes(fastify: FastifyInstance, prisma: PrismaClien
     });
 
     // 删除已注册设备
-    fastify.delete("/:serial", {
+    fastify.delete("/device/:serial", {
         schema: {
             description: "删除已注册的设备",
             tags: ["device"],
@@ -157,7 +157,7 @@ export async function deviceRoutes(fastify: FastifyInstance, prisma: PrismaClien
     });
 
     // 扫描网络并自动添加设备
-    fastify.post("/scan", async (request: FastifyRequest, reply) => {
+    fastify.post("/device/scan", async (request: FastifyRequest, reply) => {
         try {
             const checkPort = (ip: string, port: number, timeout = 1000): Promise<boolean> => {
                 return new Promise((resolve) => {
