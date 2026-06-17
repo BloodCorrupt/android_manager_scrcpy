@@ -37,7 +37,12 @@ echo "Setting up systemd service..."
 
 SERVICE_FILE="/etc/systemd/system/android-manager.service"
 PROJECT_DIR="$(pwd)"
-USER_NAME="$(whoami)"
+# Identify the actual user even if script is run via sudo
+if [ -n "$SUDO_USER" ]; then
+    USER_NAME="$SUDO_USER"
+else
+    USER_NAME="$(whoami)"
+fi
 
 # Create the service file content
 cat << EOF | sudo tee $SERVICE_FILE > /dev/null
@@ -72,3 +77,8 @@ sudo systemctl restart android-manager.service
 echo "Installation complete! The application is now running in the background as a systemd service."
 echo "You can check the logs anytime using: sudo journalctl -u android-manager -f"
 
+# Fix permissions if the script was run with sudo
+if [ -n "$SUDO_USER" ]; then
+    echo "Fixing file permissions for user $USER_NAME..."
+    sudo chown -R $USER_NAME:$USER_NAME "$PROJECT_DIR"
+fi
