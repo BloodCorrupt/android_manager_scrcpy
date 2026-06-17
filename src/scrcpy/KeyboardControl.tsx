@@ -161,8 +161,8 @@ export function KeyboardControl({client, enabled}: KeyboardControlProps) {
 
                     }
                 } catch (err) {
-                    console.error('粘贴失败:', err);
-                    console.warn('请确保已授予剪贴板读取权限');
+                    console.error('Paste failed:', err);
+                    console.warn('Make sure clipboard read permission is granted');
                 }
                 return;
             }

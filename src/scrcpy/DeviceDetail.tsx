@@ -55,30 +55,30 @@ export default function DeviceDetail() {
     const cleanupRef = useRef<(() => void) | null>(null);
     const controllerRef = useRef<ScrcpyControlMessageWriter | null>(null);
     const scrcpyClientRef = useRef<AdbScrcpyClient<AdbScrcpyOptions3_3_3<boolean>>>(null);
-    const isMutedRef = useRef<boolean>(true); // 使用 ref 保存最新的静音状态，避免闭包问题
-    const audioManagerRef = useRef<AudioManager | null>(null); // 音频管理器
+    const isMutedRef = useRef<boolean>(true); // Use ref to keep latest mute state, avoiding closure issues
+    const audioManagerRef = useRef<AudioManager | null>(null); // Audio manager
 
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string>();
     const [deviceInfo, setDeviceInfo] = useState<DeviceInfo | null>(null);
-    const [screenSize, setScreenSize] = useState<{ width: number; height: number }>(); // 物理尺寸（固定，竖屏尺寸）
-    const [videoSize, setVideoSize] = useState<{ width: number; height: number }>(); // 视频尺寸（随旋转变化）
-    const [isLandscape, setIsLandscape] = useState(false); // 是否为横屏
+    const [screenSize, setScreenSize] = useState<{ width: number; height: number }>(); // Physical size (fixed, portrait dimensions)
+    const [videoSize, setVideoSize] = useState<{ width: number; height: number }>(); // Video size (changes with rotation)
+    const [isLandscape, setIsLandscape] = useState(false); // Whether landscape mode
     const [isVideoLoaded, setIsVideoLoaded] = useState(false);
-    const [isMuted, setIsMuted] = useState(true); // 默认静音，等待用户手动激活
-    const [audioAvailable, setAudioAvailable] = useState(true); // 音频是否可用
-    const [audioError, setAudioError] = useState(false); // 音频是否出错
-    const [isMobile, setIsMobile] = useState(false); // 是否为移动设备
+    const [isMuted, setIsMuted] = useState(true); // Default muted, wait for user to activate
+    const [audioAvailable, setAudioAvailable] = useState(true); // Whether audio is available
+    const [audioError, setAudioError] = useState(false); // Whether audio errored
+    const [isMobile, setIsMobile] = useState(false); // Whether mobile device
 
-    // 按键处理函数
+    // Key press handler
     const handleKeyPress = (keyCode: AndroidKeyCode) => {
         if (!controllerRef.current) {
-            console.warn('控制器未初始化');
+            console.warn('Controller not initialized');
             return;
         }
 
         try {
-            // 按下按键
+            // Key down
             controllerRef.current.injectKeyCode({
                 action: AndroidKeyEventAction.Down,
                 keyCode: keyCode,
@@ -86,7 +86,7 @@ export default function DeviceDetail() {
                 metaState: 0,
             });
 
-            // 释放按键
+            // Key up
             controllerRef.current.injectKeyCode({
                 action: AndroidKeyEventAction.Up,
                 keyCode: keyCode,
@@ -94,19 +94,19 @@ export default function DeviceDetail() {
                 metaState: 0,
             });
         } catch (error) {
-            console.error('发送按键失败:', error);
+            console.error('Failed to send key event:', error);
         }
     };
 
     useEffect(() => {
-        // 检测是否为移动设备
+        // Detect mobile device
         setIsMobile(isMobileDevice());
 
-        // 捕获当前 ref 值，用于清理函数（避免闭包问题）
+        // Capture current ref value for cleanup function (avoid closure issues)
         const wrapper = wrapperRef.current;
 
         if (!serial) {
-            setError('缺少设备序列号');
+            setError('Missing device serial number');
             setIsLoading(false);
             return;
         }
@@ -116,15 +116,15 @@ export default function DeviceDetail() {
             try {
                 const response = await fetch(`${window.location.protocol}//${window.location.hostname}:8080/device/${serial}`);
                 if (!response.ok) {
-                    throw new Error(`获取设备信息失败: ${response.status}`);
+                    throw new Error(`Failed to get device info: ${response.status}`);
                 }
 
                 const data: DeviceResponse = await response.json();
                 setDeviceInfo(data.info);
 
-                console.log(`设备信息:`, data);
+                console.log(`Device info:`, data);
                 if (data.info.screen_width && data.info.screen_height) {
-                    // 保存物理尺寸（总是竖屏尺寸，用于显示占位）
+                    // Save physical size (always portrait dimensions, used for placeholder)
                     const physicalWidth = Math.min(data.info.screen_width, data.info.screen_height);
                     const physicalHeight = Math.max(data.info.screen_width, data.info.screen_height);
                     setScreenSize({
@@ -171,19 +171,19 @@ export default function DeviceDetail() {
                     controllerRef.current = scrcpy.controller;
                 }
 
-                // 初始化音频流
+                // Initialize audio stream
                 const initAudioStream = async () => {
                     try {
                         const audioStreamPromise = scrcpy.audioStream;
                         if (!audioStreamPromise) {
-                            console.warn(`设备不支持音频流`);
+                            console.warn(`Device does not support audio stream`);
                             setAudioAvailable(false);
                             return;
                         }
 
                         const metadata = await audioStreamPromise;
                         if (metadata.type === 'disabled' || metadata.type === 'errored') {
-                            console.warn(`音频不可用:`, metadata.type);
+                            console.warn(`Audio unavailable:`, metadata.type);
                             setAudioAvailable(false);
                             if (metadata.type === 'errored') {
                                 setAudioError(true);
@@ -191,9 +191,9 @@ export default function DeviceDetail() {
                             return;
                         }
 
-                        console.log(`音频编解码器:`, metadata.codec);
+                        console.log(`Audio codec:`, metadata.codec);
 
-                        // 创建音频管理器并初始化
+                        // Create audio manager and initialize
                         const audioManager = new AudioManager(isMutedRef);
                         audioManager.initialize(metadata.codec, metadata.codec.webCodecId, metadata.stream);
                         audioManagerRef.current = audioManager;
@@ -202,13 +202,13 @@ export default function DeviceDetail() {
                         setAudioError(false);
                     } catch (error: unknown) {
                         const err = error as Error;
-                        console.warn(`音频初始化失败（不影响视频）:`, err.message || error);
+                        console.warn(`Audio initialization failed (video unaffected):`, err.message || error);
                         setAudioAvailable(false);
                         setAudioError(true);
                     }
                 };
 
-                // 启动音频初始化（不等待完成）
+                // Start audio initialization (don't await completion)
                 void initAudioStream();
 
                 const stream = scrcpy.videoStream!;
@@ -216,7 +216,7 @@ export default function DeviceDetail() {
                     const {renderer, element} = createVideoFrameRenderer();
 
                     if (wrapperRef.current) {
-                        // 清空之前的内容（热加载时）
+                        // Clear previous content (on hot reload)
                         wrapperRef.current.innerHTML = '';
 
                         element.style.display = 'block';
@@ -232,12 +232,12 @@ export default function DeviceDetail() {
                     });
                     setIsVideoLoaded(true);
 
-                    // 在 sizeChanged 中更新视频尺寸和屏幕方向
+                    // Update video size and screen orientation in sizeChanged
                     decoder.sizeChanged(({width, height}) => {
-                        // 更新视频尺寸（用于触摸坐标转换和显示）
+                        // Update video size (for touch coordinate conversion and display)
                         setVideoSize({width, height});
 
-                        // 更新屏幕方向状态
+                        // Update screen orientation state
                         const landscape = width > height;
                         setIsLandscape(landscape);
                     });
@@ -245,11 +245,11 @@ export default function DeviceDetail() {
                     stream
                         .pipeTo(decoder.writable)
                         .catch(error => {
-                            // 忽略组件卸载时的常见错误
+                            // Ignore common errors during component unmount
                             if (error.name !== 'AbortError' &&
                                 !error.message.includes('locked') &&
                                 !error.message.includes('closed')) {
-                                console.error(`视频流处理错误:`, error);
+                                console.error(`Video stream processing error:`, error);
                             }
                         });
                 });
@@ -261,13 +261,13 @@ export default function DeviceDetail() {
                                 globalThis.navigator.clipboard.writeText(chunk);
                             },
                         }),
-                    ).catch(err => console.error(`剪贴设置板错误:`, err));
+                    ).catch(err => console.error(`Clipboard error:`, err));
                 }
 
                 void scrcpy.output.pipeTo(
                     new WritableStream<string>({
                         write(chunk) {
-                            console.log(`输出:`, chunk);
+                            console.log(`Output:`, chunk);
                         },
                     }),
                 );
@@ -279,8 +279,8 @@ export default function DeviceDetail() {
                 };
 
             } catch (e) {
-                console.error(`初始化失败:`, e);
-                setError(e instanceof Error ? e.message : '连接设备失败');
+                console.error(`Initialization failed:`, e);
+                setError(e instanceof Error ? e.message : 'Failed to connect to device');
                 setIsLoading(false);
             }
         };
@@ -288,26 +288,26 @@ export default function DeviceDetail() {
         initializeDevice();
 
         return () => {
-            // 清理音频管理器
+            // Clean up audio manager
             audioManagerRef.current?.cleanup();
             audioManagerRef.current = null;
 
-            // 清理 scrcpy/adb/transport
+            // Clean up scrcpy/adb/transport
             if (cleanupRef.current) {
                 cleanupRef.current();
                 cleanupRef.current = null;
             }
 
-            // 清除控制器和客户端引用
+            // Clear controller and client references
             controllerRef.current = null;
             scrcpyClientRef.current = null;
 
-            // 清空视频容器（使用捕获的 wrapper 值）
+            // Clear video container (using captured wrapper value)
             if (wrapper) {
                 wrapper.innerHTML = '';
             }
 
-            // 重置状态
+            // Reset state
             setIsVideoLoaded(false);
             setIsLandscape(false);
             setIsMuted(true);
@@ -318,22 +318,22 @@ export default function DeviceDetail() {
     }, [serial]);
 
 
-    // 静音切换
+    // Mute toggle
     const toggleMute = () => {
         if (isMuted) {
-            // 取消静音：启动音频播放器（用户交互，符合浏览器策略）
+            // Unmute: start audio player (user interaction, complies with browser policy)
             audioManagerRef.current?.start();
             setIsMuted(false);
             isMutedRef.current = false;
         } else {
-            // 静音：停止音频播放器
+            // Mute: stop audio player
             audioManagerRef.current?.stop();
             setIsMuted(true);
             isMutedRef.current = true;
         }
     };
 
-    // 旋转屏幕
+    // Rotate screen
     const rotateScreen = () => {
         if (scrcpyClientRef.current?.controller) {
             scrcpyClientRef.current.controller.rotateDevice();
@@ -341,12 +341,12 @@ export default function DeviceDetail() {
     };
 
     /**
-     * 获取 SVG 占位尺寸（移动设备横屏时交换宽高）
+     * Get SVG placeholder size (swap width/height for mobile landscape)
      */
     const getVisualSize = () => {
         const size = videoSize || screenSize || {width: 0, height: 0};
 
-        // 移动设备横屏：交换宽高，让容器适应旋转后的视频
+        // Mobile landscape: swap dimensions to fit rotated video
         if (isMobile && isLandscape) {
             return {
                 width: size.height,
@@ -358,18 +358,18 @@ export default function DeviceDetail() {
     };
 
     /**
-     * 获取视频容器样式（移动设备横屏时旋转 90°）
+     * Get video container style (rotate 90° for mobile landscape)
      */
     const getVideoWrapperStyle = (): React.CSSProperties => {
         if (!isMobile || !isLandscape || !videoSize) {
-            // 桌面或竖屏：正常显示
+            // Desktop or portrait: normal display
             return {
                 position: 'absolute',
                 inset: 0
             };
         }
 
-        // 移动设备横屏：旋转容器 90°
+        // Mobile landscape: rotate container 90°
         return {
             position: 'absolute',
             top: '50%',
@@ -385,14 +385,14 @@ export default function DeviceDetail() {
     };
 
     /**
-     * 获取触控旋转角度（移动设备横屏时返回 90）
+     * Get touch rotation angle (returns 90 for mobile landscape)
      */
     const getTouchRotation = (): number => {
         return (isMobile && isLandscape) ? 90 : 0;
     };
 
     /**
-     * 获取触控屏幕尺寸（始终使用原始尺寸，rotation 会处理坐标转换）
+     * Get touch screen size (always use original size, rotation handles coordinate conversion)
      */
     const getTouchScreenSize = () => {
         return videoSize || screenSize || {width: 0, height: 0};
@@ -425,7 +425,7 @@ export default function DeviceDetail() {
                             size="icon"
                             onClick={rotateScreen}
                             disabled={!isVideoLoaded}
-                            title={`旋转屏幕 (当前: ${isLandscape ? '横屏' : '竖屏'})`}
+                            title={`Rotate screen (current: ${isLandscape ? 'Landscape' : 'Portrait'})`}
                         >
                             <RectangleVertical
                                 className="h-4 w-4 transition-transform duration-300"
@@ -439,8 +439,8 @@ export default function DeviceDetail() {
                             disabled={!audioAvailable}
                             title={
                                 !audioAvailable
-                                    ? (audioError ? "音频出错" : "音频不可用")
-                                    : (isMuted ? "取消静音" : "静音")
+                                    ? (audioError ? "Audio error" : "Audio unavailable")
+                                    : (isMuted ? "Unmute" : "Mute")
                             }
                             className={audioError ? "text-destructive hover:text-destructive" : ""}
                         >
@@ -450,7 +450,7 @@ export default function DeviceDetail() {
                             variant="ghost"
                             size="icon"
                             onClick={() => handleKeyPress(AndroidKeyCode.Power)}
-                            title="电源键"
+                            title="Power"
                         >
                             <Power className="h-4 w-4"/>
                         </Button>
@@ -462,11 +462,11 @@ export default function DeviceDetail() {
                         <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-8 flex flex-col items-center gap-4">
                             <AlertCircle className="h-8 w-8 text-destructive"/>
                             <div className="text-center">
-                                <p className="font-medium text-destructive mb-2">连接失败</p>
+                                <p className="font-medium text-destructive mb-2">Connection Failed</p>
                                 <p className="text-sm text-muted-foreground">{error}</p>
                             </div>
                             <Button onClick={() => window.location.reload()} variant="outline">
-                                刷新重拾
+                                Retry
                             </Button>
                         </div>
                     ) : screenSize && (
@@ -474,9 +474,9 @@ export default function DeviceDetail() {
 
 
                             <div className="inline-flex flex-col gap-0 ">
-                                {/* 屏幕显示区域 */}
+                                {/* Screen display area */}
                                 <div className="canvas-wrapper border-2 border-solid border-black rounded-t-sm overflow-hidden bg-white relative">
-                                    {/* 键盘控制 */}
+                                    {/* Keyboard control */}
                                     <KeyboardControl client={scrcpyClientRef.current} enabled={isVideoLoaded}/>
 
                                     <TouchControl
@@ -485,7 +485,7 @@ export default function DeviceDetail() {
                                         screenHeight={getTouchScreenSize().height}
                                         rotation={getTouchRotation()}
                                     >
-                                        {/* 底层：SVG 占位撑开尺寸 */}
+                                        {/* Base layer: SVG placeholder for sizing */}
                                         <svg
                                             width={getVisualSize().width}
                                             height={getVisualSize().height}
@@ -498,13 +498,13 @@ export default function DeviceDetail() {
                                             }}
                                         />
 
-                                        {/* 中间层：视频容器（处理旋转） */}
+                                        {/* Middle layer: video container (handles rotation) */}
                                         <div
                                             ref={wrapperRef}
                                             style={getVideoWrapperStyle()}
                                         />
 
-                                        {/* 顶层：加载动画 */}
+                                        {/* Top layer: loading animation */}
                                         {!isVideoLoaded && (
                                             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                                                 <Spinner className="h-8 w-8 text-black"/>
@@ -513,13 +513,13 @@ export default function DeviceDetail() {
                                     </TouchControl>
                                 </div>
 
-                                {/* Android 风格导航栏 */}
+                                {/* Android-style navigation bar */}
                                 <div className="flex items-center justify-around bg-black/90 border-2 border-t-0 border-black rounded-b-sm w-full">
                                     <Button
                                         variant="ghost"
                                         size="icon"
                                         className="size-8 hover:bg-white/10 text-white"
-                                        title="返回"
+                                        title="Back"
                                         onClick={() => handleKeyPress(AndroidKeyCode.AndroidHome)}
                                     >
                                         <ChevronLeft className="h-6 w-6"/>
@@ -528,7 +528,7 @@ export default function DeviceDetail() {
                                         variant="ghost"
                                         size="icon"
                                         className="size-8 hover:bg-white/10 text-white"
-                                        title="主页"
+                                        title="Home"
                                         onClick={() => handleKeyPress(AndroidKeyCode.AndroidHome)}
                                     >
                                         <Home className="h-5 w-5"/>
@@ -537,7 +537,7 @@ export default function DeviceDetail() {
                                         variant="ghost"
                                         size="icon"
                                         className="size-8 hover:bg-white/10 text-white"
-                                        title="最近任务"
+                                        title="Recent Apps"
                                         onClick={() => handleKeyPress(AndroidKeyCode.AndroidAppSwitch)}
                                     >
                                         <Square className="h-5 w-5"/>

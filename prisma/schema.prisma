@@ -50,3 +50,27 @@ model Device {
   /// 记录更新时间
   updatedAt   DateTime @updatedAt
 }
+
+/// 管理员认证表，存储管理员密码（单行，单例模式）
+model AdminAuth {
+  /// 主键ID，固定为1
+  id            Int      @id @default(1)
+  /// bcrypt 哈希后的密码
+  password_hash String
+  /// 创建时间
+  createdAt     DateTime @default(now())
+  /// 更新时间
+  updatedAt     DateTime @updatedAt
+}
+
+/// 登录会话表，存储活跃的登录会话
+model Session {
+  /// 主键ID，自增
+  id        Int      @id @default(autoincrement())
+  /// 会话令牌，唯一标识
+  token     String   @unique
+  /// 过期时间
+  expiresAt DateTime
+  /// 创建时间
+  createdAt DateTime @default(now())
+}

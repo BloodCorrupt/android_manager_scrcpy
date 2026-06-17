@@ -47,6 +47,8 @@ export const config = {
     // 认证配置
     auth: {
         sessionToken: process.env.SESSION_TOKEN || "change-this-token-in-production",
+        sessionMaxAge: parseInt(process.env.SESSION_MAX_AGE || String(7 * 24 * 60 * 60 * 1000), 10), // 7 days in ms
+        cookieName: "session",
     },
     
     // 分页配置

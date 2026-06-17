@@ -1,11 +1,15 @@
 import Fastify from "fastify";
+// @ts-ignore
 import {PrismaClient} from "@prisma/client";
 import websocketPlugin from "@fastify/websocket";
 import cors from "@fastify/cors";
 import cookie from "@fastify/cookie";
+import fastifyStatic from "@fastify/static";
 import {config} from "./config.js";
 import {deviceRoutes} from "./routes/device.routes.js";
 import {adbRoutes} from "./routes/adb.routes.js";
+import {authRoutes} from "./routes/auth.routes.js";
+import {registerAuthMiddleware} from "./auth.middleware.js";
 import fs from "fs";
 import path from "path";
 import {fileURLToPath} from "url";
@@ -44,6 +48,34 @@ await fastify.register(websocketPlugin, {options: {maxPayload: config.websocket.
 await fastify.register(cookie, config.cookie);
 
 await fastify.register(cors, config.cors);
+
+// Serve static frontend files from dist directory
+const distPath = path.resolve(__dirname, '../../dist');
+if (fs.existsSync(distPath)) {
+    await fastify.register(fastifyStatic, {
+        root: distPath,
+        prefix: '/',
+    });
+    
+    // Fallback for SPA routing
+    fastify.setNotFoundHandler((request, reply) => {
+        if (request.method === 'GET' && !request.url.startsWith('/api/') && !request.url.startsWith('/auth/') && !request.url.startsWith('/device')) {
+            return reply.sendFile('index.html');
+        }
+        reply.status(404).send({
+            error: "Not Found",
+            message: `Route ${request.method} ${request.url} not found`
+        });
+    });
+} else {
+    // 404 处理 (Fallback if no dist folder)
+    fastify.setNotFoundHandler((request, reply) => {
+        reply.status(404).send({
+            error: "Not Found",
+            message: `Route ${request.method} ${request.url} not found`
+        });
+    });
+}
 
 // 添加安全头以支持 SharedArrayBuffer 和 AudioWorklet
 fastify.addHook('onRequest', async (_request, reply) => {
@@ -91,6 +123,14 @@ fastify.get("/health", async () => {
 });
 
 
+// 注册认证路由（公开路由，不需要认证）
+await fastify.register(async (fastify) => {
+    await authRoutes(fastify, prisma);
+});
+
+// 注册认证中间件（保护后续所有路由）
+registerAuthMiddleware(fastify as any, prisma);
+
 await fastify.register(async (fastify) => {
     await deviceRoutes(fastify, prisma);
 });
@@ -119,13 +159,7 @@ fastify.setErrorHandler((error, request, reply) => {
     });
 });
 
-// 404 处理
-fastify.setNotFoundHandler((request, reply) => {
-    reply.status(404).send({
-        error: "Not Found",
-        message: `Route ${request.method} ${request.url} not found`
-    });
-});
+// 404 handler moved to static file serving logic above
 
 // 启动服务器
 try {

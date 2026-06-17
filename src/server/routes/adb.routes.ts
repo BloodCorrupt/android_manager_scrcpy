@@ -1,5 +1,6 @@
 /**
  * ADB 设备管理路由
+ * 支持 USB（通过本地 adb server）和 TCP（直连）双模式
  */
 
 import type {FastifyInstance, FastifyRequest} from "fastify";
@@ -12,20 +13,29 @@ import {AdbScrcpyClient} from "@yume-chan/adb-scrcpy";
 import {DefaultServerPath} from "@yume-chan/scrcpy";
 import {BIN, VERSION} from "@yume-chan/fetch-scrcpy-server";
 import fs from "fs/promises";
-import cookie from "@fastify/cookie";
 import {config} from "../config.js";
 import {AdbDaemonDirectSocketsDevice} from "@/server/transport/adb-daemon-direct-sockets";
 import {AdbNodeJsCredentialStore} from "@/server/credential-store";
 import {WS} from "@/server/transport/socket-websocket.ts";
 import type {DeviceInfo, DeviceResponse, DeviceBasicInfo} from "@/types/device.types";
+// @ts-ignore
 import {PrismaClient} from "@prisma/client";
 
 const credentialStore = new AdbNodeJsCredentialStore();
 const prisma = new PrismaClient();
 
+/**
+ * 判断设备 serial 是否为 USB 设备（非 IP:port 格式）
+ */
+function isUsbSerial(serial: string): boolean {
+    // USB 设备的 serial 通常是字母数字字符串（如 "R5CT32XXXXX"）
+    // TCP 设备的 serial 是 IP:port 格式（如 "192.168.1.100:5555"）
+    return !serial.match(/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d+$/);
+}
+
 export async function adbRoutes(fastify: FastifyInstance) {
 
-    // 初始化 ADB 客户端
+    // 初始化 ADB 客户端（连接本地 adb server）
     const connector = new AdbServerNodeTcpConnector(config.adb);
     const adbClient = new AdbServerClient(connector);
     fastify.log.info('ADB client initialized');
@@ -62,47 +72,123 @@ export async function adbRoutes(fastify: FastifyInstance) {
         fastify.log.info({count: transportCache.size}, 'Transport connections closed');
     });
 
-    // 设备变化监听
-    adbClient.trackDevices().then((observer) => {
-        observer.onListChange(async (devices) => {
-            fastify.log.debug({count: devices.length}, 'Device list changed');
+    /**
+     * 构建设备列表（合并 adb server 设备和注册设备）
+     */
+    async function buildDeviceList(): Promise<DeviceBasicInfo[]> {
+        const devices = await adbClient.getDevices();
 
-            // 广播给所有 WebSocket 客户端
-            const basicInfos = devices.map((device): DeviceBasicInfo => ({
-                serial: device.serial,
-                state: device.state,
-                model: device.model || '',
-                product: device.product || '',
-                device: device.device || '',
-                transportId: Number(device.transportId)
-            }));
-            const registeredDevices = await prisma.device.findMany();
-            const registeredDeviceInfos = registeredDevices.map((device): DeviceBasicInfo => ({
+        // adb server 设备（USB 和 TCP 都会出现）
+        const adbDevices = devices.map((device): DeviceBasicInfo => ({
+            serial: device.serial,
+            state: device.state,
+            model: device.model || '',
+            product: device.product || '',
+            device: device.device || '',
+            transportId: Number(device.transportId),
+            connectionType: isUsbSerial(device.serial) ? "usb" : "tcp",
+        }));
+
+        // 注册设备（数据库中的设备）
+        const registeredDevices = await prisma.device.findMany();
+        const registeredDeviceInfos = registeredDevices
+            .filter((device: any) => {
+                // 排除已经在 adb server 列表中的设备
+                return !adbDevices.some(d => d.serial === device.serial_no);
+            })
+            .map((device: any): DeviceBasicInfo => ({
                 serial: device.serial_no,
                 state: "device",
                 model: device.market_name || '',
                 product: device.serial_no || '',
                 device: device.model || '',
-                transportId: Number(-1)
+                transportId: Number(-1),
+                connectionType: "registered",
             }));
-            const allDeviceInfos = [...basicInfos, ...registeredDeviceInfos];
-            for (const client of wsClients) {
-                if (client.readyState === 1) { // OPEN
-                    client.send(JSON.stringify(allDeviceInfos));
+
+        return [...adbDevices, ...registeredDeviceInfos];
+    }
+
+    /**
+     * 获取或创建设备 transport
+     * USB 设备通过 adb server，TCP 设备通过直连
+     */
+    async function getOrCreateTransport(serial: string): Promise<AdbTransport | null> {
+        // 从缓存获取
+        if (transportCache.has(serial)) {
+            return transportCache.get(serial)!;
+        }
+
+        // 尝试通过本地 adb server 连接（USB 设备和 adb connect 的设备）
+        try {
+            const devices = await adbClient.getDevices();
+            const device = devices.find((d) => d.serial === serial);
+
+            if (device) {
+                fastify.log.info({serial, type: 'adb-server'}, 'Creating transport via adb server');
+                const transport = await adbClient.createTransport({
+                    serial: device.serial,
+                    transportId: device.transportId
+                });
+
+                transportCache.set(serial, transport);
+                fastify.log.info({serial}, 'Transport created via adb server (USB/TCP)');
+                return transport;
+            }
+        } catch (error) {
+            fastify.log.warn({serial, error}, 'Failed to create transport via adb server, trying direct TCP...');
+        }
+
+        // 尝试通过 TCP 直连（IP:port 格式）
+        if (!isUsbSerial(serial)) {
+            try {
+                fastify.log.info({serial, type: 'tcp-direct'}, 'Creating transport via TCP direct connect');
+                const ipi = serial.split(":");
+                const device: AdbDaemonDirectSocketsDevice = new AdbDaemonDirectSocketsDevice({
+                    host: ipi[0],
+                    port: parseInt(ipi[1]),
+                });
+
+                const connection: ReadableWritablePair<AdbPacketData, Consumable<AdbPacketInit>> = await device.connect();
+                const transport = await AdbDaemonTransport.authenticate({
+                    serial: device.serial,
+                    connection: connection,
+                    credentialStore: credentialStore,
+                    initialDelayedAckBytes: 1,
+                    preserveConnection: true,
+                    readTimeLimit: 5,
+                });
+
+                transportCache.set(serial, transport);
+                fastify.log.info({serial}, 'Transport created via TCP direct connect');
+                return transport;
+            } catch (error) {
+                fastify.log.error({serial, error}, 'Failed to create TCP direct transport');
+            }
+        }
+
+        return null;
+    }
+
+    // 设备变化监听
+    adbClient.trackDevices().then((observer) => {
+        observer.onListChange(async (_devices) => {
+            fastify.log.debug({count: _devices.length}, 'Device list changed');
+
+            try {
+                const allDeviceInfos = await buildDeviceList();
+                for (const client of wsClients) {
+                    if (client.readyState === 1) { // OPEN
+                        client.send(JSON.stringify(allDeviceInfos));
+                    }
                 }
+            } catch (error) {
+                fastify.log.error(error, 'Failed to broadcast device list');
             }
         });
     }).catch((error) => {
         fastify.log.error(error, 'Failed to track devices');
     });
-
-    // 认证 Hook
-    // fastify.addHook('preValidation', async (request, reply) => {
-    //     const cookies = cookie.parse(request.headers.cookie || "");
-    //     if (request.ws && cookies.session !== config.auth.sessionToken) {
-    //         return reply.code(401).send({error: "Unauthorized"});
-    //     }
-    // });
 
     // 获取设备列表（HTTP + WebSocket）
     fastify.route({
@@ -110,26 +196,8 @@ export async function adbRoutes(fastify: FastifyInstance) {
         url: '/devices',
         handler: async (_req, reply) => {
             try {
-                const devices = await adbClient.getDevices();
-                const basicInfos = devices.map((device): DeviceBasicInfo => ({
-                    serial: device.serial,
-                    state: device.state,
-                    model: device.model || '',
-                    product: device.product || '',
-                    device: device.device || '',
-                    transportId: Number(device.transportId)
-                }));
-                const registeredDevices = await prisma.device.findMany();
-                const registeredDeviceInfos = registeredDevices.map((device): DeviceBasicInfo => ({
-                    serial: device.serial_no,
-                    state: "device",
-                    model: device.market_name || '',
-                    product: device.serial_no || '',
-                    device: device.model || '',
-                    transportId: Number(-1)
-                }));
-                const allDeviceInfos = [...basicInfos, ...registeredDeviceInfos];
-                reply.setCookie("session", config.auth.sessionToken, {
+                const allDeviceInfos = await buildDeviceList();
+                reply.setCookie("session", _req.cookies.session || config.auth.sessionToken, {
                     path: "/",
                     httpOnly: true,
                     secure: process.env.NODE_ENV === 'production',
@@ -148,27 +216,8 @@ export async function adbRoutes(fastify: FastifyInstance) {
             });
 
             try {
-                const devices = await adbClient.getDevices();
-                const basicInfos = devices.map((device): DeviceBasicInfo => ({
-                    serial: device.serial,
-                    state: device.state,
-                    model: device.model || '',
-                    product: device.product || '',
-                    device: device.device || '',
-                    transportId: Number(device.transportId)
-                }))
-                const registeredDevices = await prisma.device.findMany();
-                const registeredDeviceInfos = registeredDevices.map((device): DeviceBasicInfo => ({
-                    serial: device.serial_no,
-                    state: "device",
-                    model: device.market_name || '',
-                    product: device.serial_no || '',
-                    device: device.model || '',
-                    transportId: Number(-1)
-                }));
-                const allDeviceInfos = [...basicInfos, ...registeredDeviceInfos];
+                const allDeviceInfos = await buildDeviceList();
                 socket.send(JSON.stringify(allDeviceInfos));
-
             } catch (err) {
                 fastify.log.error(err, 'Failed to send initial device list to WebSocket');
                 socket.close();
@@ -193,64 +242,10 @@ export async function adbRoutes(fastify: FastifyInstance) {
             const {serial} = req.params;
 
             try {
-                // 从缓存获取 如果transport失效 可能出现麻烦 无响应等
-                let transport = transportCache.get(serial)
-                if (!transportCache.has(serial)) {
-                    //  创建新的 transport   来自tcp直连
-                    console.log(`Connected to ${serial}`);
-                    const ipi = serial.split(":")
-                    console.log(ipi);
-                    const device: AdbDaemonDirectSocketsDevice = new AdbDaemonDirectSocketsDevice({
-                        // name: "888",
-                        host: ipi[0],
-                        port: parseInt(ipi[1]),
-                    });
-                    // await credentialStore.generateKey()
-                    // for await (const iterateKey of credentialStore.iterateKeys()) {
-                    //     console.log(iterateKey);
-                    // }
-
-                    const connection: ReadableWritablePair<AdbPacketData, Consumable<AdbPacketInit>> = await device.connect();
-                    transport = await AdbDaemonTransport.authenticate({
-                        serial: device.serial,
-                        connection: connection,
-                        credentialStore: credentialStore,
-                        initialDelayedAckBytes: 1,
-                        preserveConnection: true,
-                        readTimeLimit: 5,
-                    })
-                    // _transport.connect(device.serial);
-                    // console.log(`Connected to ${device.serial}`);
-                    transportCache.set(serial, transport);
-
-                    // 创建新的 transport   来自本地adb server
-                    // try {
-                    //     const devices = await adbClient.getDevices();
-                    //     const device = devices.find((d) => d.serial === serial);
-                    //
-                    //     if (!device) {
-                    //         return null;
-                    //     }
-                    //
-                    //
-                    //     const transport = await adbClient.createTransport({
-                    //         serial: device.serial,
-                    //         tcp: true,
-                    //         transportId: device.transportId
-                    //     });
-                    //
-                    //     cache.set(serial, transport);
-                    //     logger.log.info({serial}, "Transport created and cached");
-                    //
-                    //     return transport;
-                    // } catch (error) {
-                    //     logger.log.error(error, "Failed to create transport");
-                    //     return null;
-                    // }
-                }
+                const transport = await getOrCreateTransport(serial);
 
                 if (!transport) {
-                    return reply.status(404).send({message: "Device not found"});
+                    return reply.status(404).send({message: "Device not found or connection failed"});
                 }
 
                 const deviceInfo = await parseDeviceInfo(new Adb(transport), fastify);
@@ -311,6 +306,7 @@ export async function adbRoutes(fastify: FastifyInstance) {
                     maxPayloadSize: transport.maxPayloadSize,
                     features: transport.banner.features,
                     info: deviceInfo,
+                    connectionType: isUsbSerial(serial) ? "usb" : "tcp",
                 };
 
                 return response;

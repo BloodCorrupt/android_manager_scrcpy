@@ -59,6 +59,7 @@
     "@yume-chan/scrcpy": "^2.3.0",
     "@yume-chan/scrcpy-decoder-webcodecs": "^2.1.0",
     "@yume-chan/stream-extra": "^2.1.0",
+    "bcryptjs": "^3.0.3",
     "better-sqlite3": "^12.4.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -84,6 +85,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",
+    "@types/bcryptjs": "^2.4.6",
     "@types/node": "^24.7.2",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",

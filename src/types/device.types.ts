@@ -90,6 +90,7 @@ export interface DeviceBasicInfo {
     product: string;
     device: string;
     transportId?: number;
+    connectionType?: "usb" | "tcp" | "registered";
 }
 
 /**
