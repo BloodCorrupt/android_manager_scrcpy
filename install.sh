@@ -10,13 +10,18 @@ sudo apt-get update
 echo "Installing adb and essential tools..."
 sudo apt-get install -y adb curl build-essential
 
-# Install Node.js 20.x if not installed
-if ! command -v node &> /dev/null; then
-    echo "Node.js not found. Installing Node.js 20.x..."
+# Install Node.js 20.x if not installed or outdated
+NODE_MAJOR=""
+if command -v node &> /dev/null; then
+    NODE_MAJOR=$(node -v | cut -d'.' -f1 | sed 's/v//')
+fi
+
+if [ -z "$NODE_MAJOR" ] || [ "$NODE_MAJOR" -lt 20 ]; then
+    echo "Node.js not found or outdated (found v${NODE_MAJOR:-none}). Installing Node.js 20.x..."
     curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
     sudo apt-get install -y nodejs
 else
-    echo "Node.js is already installed: $(node -v)"
+    echo "Node.js is already up-to-date: $(node -v)"
 fi
 
 echo "Installing project dependencies..."
