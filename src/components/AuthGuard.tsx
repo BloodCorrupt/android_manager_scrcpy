@@ -10,10 +10,9 @@ import {Spinner} from './ui/spinner';
 
 interface AuthGuardProps {
     children: React.ReactNode;
-    onLogout?: () => void;
 }
 
-export default function AuthGuard({children, onLogout}: AuthGuardProps) {
+export default function AuthGuard({children}: AuthGuardProps) {
     const {
         isAuthenticated,
         needsSetup,
@@ -29,20 +28,17 @@ export default function AuthGuard({children, onLogout}: AuthGuardProps) {
         checkAuth();
     }, [checkAuth]);
 
-    // 将 logout 函数暴露给父组件
+    // 将 logout 函数暴露给全局
     useEffect(() => {
-        if (onLogout) {
-            // 通过 window 事件传递 logout 函数（简单方式避免 context 复杂性）
-            (window as any).__authLogout = async () => {
-                await logout();
-                await checkAuth();
-            };
-        }
+        (window as any).__authLogout = async () => {
+            await logout();
+            await checkAuth();
+        };
 
         return () => {
             delete (window as any).__authLogout;
         };
-    }, [logout, checkAuth, onLogout]);
+    }, [logout, checkAuth]);
 
     // 加载中
     if (isLoading && !needsSetup && !isAuthenticated) {

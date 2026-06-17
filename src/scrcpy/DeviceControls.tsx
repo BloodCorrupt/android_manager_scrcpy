@@ -34,7 +34,7 @@ export function DeviceControls({ clientRef }: DeviceControlsProps) {
     };
 
     return (
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2 p-2 rounded-2xl bg-black/40 backdrop-blur-md border border-white/10 shadow-2xl z-50 hover:bg-black/50 transition-colors">
+        <div className="w-full shrink-0 flex items-center justify-center gap-2 p-2 bg-black border-t border-white/10 z-50">
             <Button
                 variant="ghost"
                 size="icon"

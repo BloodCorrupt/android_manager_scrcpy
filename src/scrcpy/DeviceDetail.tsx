@@ -433,30 +433,32 @@ export default function DeviceDetail() {
 
     if (isPopout) {
         return (
-            <div className="h-screen w-screen bg-black overflow-hidden relative flex flex-col items-center justify-center">
+            <div className="h-screen w-screen bg-black overflow-hidden flex flex-col">
                 <KeyboardControl client={scrcpyClientRef.current} enabled={isVideoLoaded}/>
-                <TouchControl
-                    client={scrcpyClientRef.current}
-                    screenWidth={getTouchScreenSize().width}
-                    screenHeight={getTouchScreenSize().height}
-                    rotation={getTouchRotation()}
-                >
-                    <div
-                        ref={wrapperRef}
-                        style={{
-                            ...getVideoWrapperStyle(),
-                            width: '100vw',
-                            height: '100vh',
-                            objectFit: 'contain'
-                        }}
-                    />
+                <div className="flex-1 w-full min-h-0 relative">
+                    <TouchControl
+                        client={scrcpyClientRef.current}
+                        screenWidth={getTouchScreenSize().width}
+                        screenHeight={getTouchScreenSize().height}
+                        rotation={getTouchRotation()}
+                    >
+                        <div
+                            ref={wrapperRef}
+                            style={{
+                                ...getVideoWrapperStyle(),
+                                width: '100%',
+                                height: '100%',
+                                objectFit: 'contain'
+                            }}
+                        />
                     {!isVideoLoaded && (
                         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                             <Spinner className="h-8 w-8 text-white"/>
                         </div>
                     )}
-                </TouchControl>
-                {/* Floating controls specifically for popout */}
+                    </TouchControl>
+                </div>
+                {/* Fixed controls bar specifically for popout */}
                 <DeviceControls clientRef={scrcpyClientRef} />
             </div>
         );
