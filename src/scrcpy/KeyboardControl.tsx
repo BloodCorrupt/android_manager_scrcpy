@@ -172,6 +172,16 @@ export function KeyboardControl({client, enabled}: KeyboardControlProps) {
                 return;
             }
 
+            // Send printable characters directly via injectText to bypass Android layout mismatch
+            if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+                e.preventDefault();
+                e.stopPropagation();
+                if (client?.controller) {
+                    await client.controller.injectText(e.key);
+                }
+                return;
+            }
+
             // 阻止默认行为（如浏览器快捷键）
             const androidKey = KEY_CODE_MAP[e.code];
             if (androidKey) {
@@ -189,6 +199,13 @@ export function KeyboardControl({client, enabled}: KeyboardControlProps) {
 
             // Ctrl+V 在 keydown 中已处理，keyup 时直接返回
             if ((e.ctrlKey || e.metaKey) && e.code === 'KeyV') {
+                e.preventDefault();
+                e.stopPropagation();
+                return;
+            }
+
+            // Do not send keyup for printable characters handled by injectText
+            if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
                 e.preventDefault();
                 e.stopPropagation();
                 return;
