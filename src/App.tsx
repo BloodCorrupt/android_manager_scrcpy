@@ -1,6 +1,6 @@
 import {useEffect, useState} from 'react'
 import {BrowserRouter as Router, Routes, Route, useNavigate} from 'react-router-dom'
-import {Smartphone, AlertCircle, ArrowUpRightIcon, Terminal, Folder, Plus, LogOut, Usb, Wifi, Database} from 'lucide-react'
+import {Smartphone, AlertCircle, ArrowUpRightIcon, Terminal, Folder, Plus, LogOut, Usb, Wifi, Database, Trash2, Search} from 'lucide-react'
 import DeviceDetail from './scrcpy/DeviceDetail'
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from './components/ui/card'
 import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from './components/ui/table'
@@ -8,6 +8,7 @@ import {Skeleton} from './components/ui/skeleton'
 import {Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle} from "./components/ui/empty";
 import {Button} from "@/components/ui/button.tsx";
 import {Badge} from "@/components/ui/badge.tsx";
+import {Spinner} from "@/components/ui/spinner.tsx";
 import {Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger} from './components/ui/dialog';
 import {Input} from './components/ui/input';
 import {Label} from './components/ui/label';
@@ -63,9 +64,39 @@ function DeviceList() {
     const [dialogOpen, setDialogOpen] = useState(false);
     const [serialInput, setSerialInput] = useState('');
 
+    const [isScanning, setIsScanning] = useState(false);
+
     const handleLogout = async () => {
         if ((window as any).__authLogout) {
             await (window as any).__authLogout();
+        }
+    };
+
+    const handleRemoveDevice = async (serial: string) => {
+        try {
+            const isDev = import.meta.env.DEV;
+            const apiPort = import.meta.env.VITE_SERVER_PORT || 8080;
+            const apiHost = isDev ? `${window.location.hostname}:${apiPort}` : window.location.host;
+            
+            await fetch(`${window.location.protocol}//${apiHost}/device/${serial}`, { method: 'DELETE' });
+            // Devices will update via websocket
+        } catch (e) {
+            console.error('Failed to remove device', e);
+        }
+    };
+
+    const handleScan = async () => {
+        setIsScanning(true);
+        try {
+            const isDev = import.meta.env.DEV;
+            const apiPort = import.meta.env.VITE_SERVER_PORT || 8080;
+            const apiHost = isDev ? `${window.location.hostname}:${apiPort}` : window.location.host;
+            
+            await fetch(`${window.location.protocol}//${apiHost}/device/scan`, { method: 'POST' });
+        } catch (e) {
+            console.error('Scan failed', e);
+        } finally {
+            setIsScanning(false);
         }
     };
 
@@ -124,6 +155,10 @@ function DeviceList() {
                             </CardDescription>
                         </div>
                         <div className="flex items-center gap-2">
+                            <Button variant="outline" size="sm" onClick={handleScan} disabled={isScanning}>
+                                {isScanning ? <Spinner className="h-4 w-4 mr-2" /> : <Search className="h-4 w-4 mr-2"/>}
+                                {isScanning ? "Scanning..." : "Auto Scan"}
+                            </Button>
                             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
                                 <DialogTrigger asChild>
                                     <Button variant="outline" size="sm">
@@ -256,6 +291,11 @@ function DeviceList() {
                                                     <Button variant="outline" size="icon" className="h-8 w-8">
                                                         <Folder className="h-4 w-4"/>
                                                     </Button>
+                                                    {device.connectionType === 'registered' && (
+                                                        <Button variant="outline" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/20" onClick={() => handleRemoveDevice(device.serial)}>
+                                                            <Trash2 className="h-4 w-4"/>
+                                                        </Button>
+                                                    )}
                                                 </div>
                                             </TableCell>
                                         </TableRow>

@@ -22,11 +22,16 @@ import {useParams, useNavigate} from 'react-router-dom';
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '../components/ui/card';
 import {Spinner} from '../components/ui/spinner';
 import {Button} from '../components/ui/button';
-import {AlertCircle, ArrowLeft, Home, ChevronLeft, Square, Power, Volume2, VolumeOff, RectangleVertical} from 'lucide-react';
+import {AlertCircle, ArrowLeft, Home, ChevronLeft, Square, Power, Volume2, VolumeOff, RectangleVertical, Settings} from 'lucide-react';
+import {Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger} from '../components/ui/dialog';
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '../components/ui/select';
+import {Label} from '../components/ui/label';
 import {TouchControl} from './TouchControl';
 import {KeyboardControl} from './KeyboardControl';
 import type {DeviceResponse, DeviceInfo} from '../types/device.types';
 import {isMobileDevice} from '../lib/device-detect';
+import {DeviceControls} from './DeviceControls';
+import {RefreshCcw, ExternalLink} from 'lucide-react';
 
 
 function createVideoFrameRenderer(): {
@@ -69,6 +74,28 @@ export default function DeviceDetail() {
     const [audioAvailable, setAudioAvailable] = useState(true); // Whether audio is available
     const [audioError, setAudioError] = useState(false); // Whether audio errored
     const [isMobile, setIsMobile] = useState(false); // Whether mobile device
+    const [settingsOpen, setSettingsOpen] = useState(false);
+    const [bitrate, setBitrate] = useState(Number(localStorage.getItem('scrcpy-bitrate')) || 8388608);
+    const [maxSize, setMaxSize] = useState(Number(localStorage.getItem('scrcpy-maxSize')) || 0);
+
+    const searchParams = new URLSearchParams(window.location.search);
+    const isPopout = searchParams.get('popout') === 'true';
+
+    const handleReconnect = async () => {
+        if (!serial) return;
+        setIsLoading(true);
+        try {
+            await fetch(`/device/${serial}/reconnect`, { method: 'POST' });
+            window.location.reload();
+        } catch (e) {
+            console.error('Reconnect failed', e);
+            setIsLoading(false);
+        }
+    };
+
+    const handlePopout = () => {
+        window.open(`/device/${serial}?popout=true`, `scrcpy-popout-${serial}`, 'width=450,height=800,menubar=no,toolbar=no,location=no,status=no');
+    };
 
     // Key press handler
     const handleKeyPress = (keyCode: AndroidKeyCode) => {
@@ -150,7 +177,8 @@ export default function DeviceDetail() {
                     adb,
                     DefaultServerPath,
                     new AdbScrcpyOptions3_3_3({
-                        videoBitRate: 8388608,
+                        videoBitRate: bitrate,
+                        maxSize: maxSize,
                         displayId: 0,
                         maxFps: 60,
                         videoSource: "display",
@@ -403,9 +431,40 @@ export default function DeviceDetail() {
     };
 
 
+    if (isPopout) {
+        return (
+            <div className="h-screen w-screen bg-black overflow-hidden relative flex flex-col items-center justify-center">
+                <KeyboardControl client={scrcpyClientRef.current} enabled={isVideoLoaded}/>
+                <TouchControl
+                    client={scrcpyClientRef.current}
+                    screenWidth={getTouchScreenSize().width}
+                    screenHeight={getTouchScreenSize().height}
+                    rotation={getTouchRotation()}
+                >
+                    <div
+                        ref={wrapperRef}
+                        style={{
+                            ...getVideoWrapperStyle(),
+                            width: '100vw',
+                            height: '100vh',
+                            objectFit: 'contain'
+                        }}
+                    />
+                    {!isVideoLoaded && (
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                            <Spinner className="h-8 w-8 text-white"/>
+                        </div>
+                    )}
+                </TouchControl>
+                {/* Floating controls specifically for popout */}
+                <DeviceControls clientRef={scrcpyClientRef} />
+            </div>
+        );
+    }
+
     return (
         <div className="h-full flex items-center justify-center p-2 md:p-6">
-            <Card className="w-full h-full gap-3">
+            <Card className="w-full h-full gap-3 flex flex-col">
                 <CardHeader>
                     <div className="flex items-center gap-2">
                         <Button
@@ -424,6 +483,69 @@ export default function DeviceDetail() {
                                 {deviceInfo ? `${deviceInfo.model} (${deviceInfo.device})` : serial}
                             </CardDescription>
                         </div>
+                        <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+                            <DialogTrigger asChild>
+                                <Button variant="ghost" size="icon" title="Stream Settings">
+                                    <Settings className="h-4 w-4" />
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                                <DialogHeader>
+                                    <DialogTitle>Stream Settings</DialogTitle>
+                                    <DialogDescription>Configure Scrcpy bitrate and resolution (Requires restart)</DialogDescription>
+                                </DialogHeader>
+                                <div className="grid gap-4 py-4">
+                                    <div className="grid gap-2">
+                                        <Label>Video Bitrate</Label>
+                                        <Select value={bitrate.toString()} onValueChange={(v) => setBitrate(Number(v))}>
+                                            <SelectTrigger><SelectValue placeholder="Select Bitrate" /></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="16777216">16 Mbps</SelectItem>
+                                                <SelectItem value="8388608">8 Mbps (Default)</SelectItem>
+                                                <SelectItem value="4194304">4 Mbps</SelectItem>
+                                                <SelectItem value="2097152">2 Mbps</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="grid gap-2">
+                                        <Label>Max Resolution</Label>
+                                        <Select value={maxSize.toString()} onValueChange={(v) => setMaxSize(Number(v))}>
+                                            <SelectTrigger><SelectValue placeholder="Select Resolution" /></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="0">Native (Default)</SelectItem>
+                                                <SelectItem value="1920">1080p</SelectItem>
+                                                <SelectItem value="1280">720p</SelectItem>
+                                                <SelectItem value="854">480p</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                </div>
+                                <DialogFooter>
+                                    <Button onClick={() => {
+                                        localStorage.setItem('scrcpy-bitrate', bitrate.toString());
+                                        localStorage.setItem('scrcpy-maxSize', maxSize.toString());
+                                        setSettingsOpen(false);
+                                        window.location.reload();
+                                    }}>Apply & Restart</Button>
+                                </DialogFooter>
+                            </DialogContent>
+                        </Dialog>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={handleReconnect}
+                            title="Reconnect ADB"
+                        >
+                            <RefreshCcw className="h-4 w-4" />
+                        </Button>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={handlePopout}
+                            title="Pop-out Window"
+                        >
+                            <ExternalLink className="h-4 w-4" />
+                        </Button>
                         <Button
                             variant="ghost"
                             size="icon"
@@ -524,7 +646,7 @@ export default function DeviceDetail() {
                                         size="icon"
                                         className="size-8 hover:bg-white/10 text-white"
                                         title="Back"
-                                        onClick={() => handleKeyPress(AndroidKeyCode.AndroidHome)}
+                                        onClick={() => handleKeyPress(AndroidKeyCode.AndroidBack)}
                                     >
                                         <ChevronLeft className="h-6 w-6"/>
                                     </Button>

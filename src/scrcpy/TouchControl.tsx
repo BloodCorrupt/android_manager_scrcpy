@@ -4,6 +4,7 @@ import {
     ScrcpyPointerId,
 } from "@yume-chan/scrcpy";
 import {type MouseEvent, type PointerEvent, useCallback, useEffect, useRef} from "react";
+import {AndroidKeyCode, AndroidKeyEventAction} from "@yume-chan/scrcpy";
 import {AdbScrcpyClient, AdbScrcpyOptions3_3_3} from "@yume-chan/adb-scrcpy";
 import * as React from "react";
 
@@ -104,6 +105,23 @@ export function TouchControl({client, screenWidth, screenHeight, rotation = 0, c
 
         e.preventDefault();
         e.stopPropagation();
+
+        if (e.button === 2) {
+            // Right-click: trigger Back button
+            client.controller.injectKeyCode({
+                action: AndroidKeyEventAction.Down,
+                keyCode: AndroidKeyCode.AndroidBack,
+                repeat: 0,
+                metaState: 0,
+            });
+            client.controller.injectKeyCode({
+                action: AndroidKeyEventAction.Up,
+                keyCode: AndroidKeyCode.AndroidBack,
+                repeat: 0,
+                metaState: 0,
+            });
+            return;
+        }
 
         e.currentTarget.setPointerCapture(e.pointerId);
         injectTouch(AndroidMotionEventAction.Down, e);

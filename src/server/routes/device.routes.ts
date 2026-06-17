@@ -6,6 +6,8 @@ import type {FastifyInstance, FastifyRequest} from "fastify";
 import type {PrismaClient} from "@prisma/client";
 import type {DeviceRegisterData} from "@/types/device.types.ts";
 import {config} from "../config.js";
+import os from "os";
+import {Socket} from "net";
 
 export async function deviceRoutes(fastify: FastifyInstance, prisma: PrismaClient) {
     
@@ -64,6 +66,38 @@ export async function deviceRoutes(fastify: FastifyInstance, prisma: PrismaClien
         }
     });
 
+    // 删除已注册设备
+    fastify.delete("/:serial", {
+        schema: {
+            description: "删除已注册的设备",
+            tags: ["device"],
+            params: {
+                type: "object",
+                properties: {
+                    serial: {type: "string", description: "设备序列号"}
+                }
+            }
+        }
+    }, async (request: FastifyRequest<{Params: {serial: string}}>, reply) => {
+        try {
+            const {serial} = request.params;
+            
+            await prisma.device.delete({
+                where: {serial_no: serial}
+            });
+
+            request.log.info({serial}, "Device deleted");
+            return { success: true, message: "Device deleted successfully" };
+        } catch (error) {
+            request.log.error(error, "Failed to delete device");
+            return reply.code(500).send({
+                success: false,
+                message: "Internal server error",
+                error: error instanceof Error ? error.message : "Unknown error"
+            });
+        }
+    });
+
     // 获取所有已注册设备
     fastify.get("/devices/registered", {
         schema: {
@@ -114,6 +148,70 @@ export async function deviceRoutes(fastify: FastifyInstance, prisma: PrismaClien
         } catch (error) {
             request.log.error(error, "Failed to get device list");
             
+            return reply.code(500).send({
+                success: false,
+                message: "Internal server error"
+            });
+        }
+    });
+
+    // 扫描网络并自动添加设备
+    fastify.post("/scan", async (request: FastifyRequest, reply) => {
+        try {
+            const checkPort = (ip: string, port: number, timeout = 1000): Promise<boolean> => {
+                return new Promise((resolve) => {
+                    const socket = new Socket();
+                    socket.setTimeout(timeout);
+                    socket.once('connect', () => {
+                        socket.destroy();
+                        resolve(true);
+                    });
+                    socket.once('timeout', () => {
+                        socket.destroy();
+                        resolve(false);
+                    });
+                    socket.once('error', () => {
+                        resolve(false);
+                    });
+                    socket.connect(port, ip);
+                });
+            };
+
+            const interfaces = os.networkInterfaces();
+            const discovered: string[] = [];
+            
+            for (const name of Object.keys(interfaces)) {
+                for (const net of interfaces[name] || []) {
+                    if (net.family === 'IPv4' && !net.internal) {
+                        const ipParts = net.address.split('.');
+                        ipParts.pop();
+                        const baseIp = ipParts.join('.');
+                        
+                        const promises = [];
+                        for (let i = 1; i <= 254; i++) {
+                            const ip = `${baseIp}.${i}`;
+                            promises.push(checkPort(ip, 5555).then(async isOpen => {
+                                if (isOpen) {
+                                    const serial = `${ip}:5555`;
+                                    discovered.push(serial);
+                                    // 自动注册
+                                    await prisma.device.upsert({
+                                        where: {serial_no: serial},
+                                        update: {},
+                                        create: {serial_no: serial, adb_port: "5555"}
+                                    });
+                                }
+                            }));
+                        }
+                        await Promise.all(promises);
+                    }
+                }
+            }
+
+            request.log.info({discovered}, "Network scan completed");
+            return { success: true, message: `Scan complete. Found ${discovered.length} device(s)`, data: discovered };
+        } catch (error) {
+            request.log.error(error, "Failed to scan network");
             return reply.code(500).send({
                 success: false,
                 message: "Internal server error"

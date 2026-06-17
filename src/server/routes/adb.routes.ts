@@ -368,6 +368,42 @@ export async function adbRoutes(fastify: FastifyInstance) {
             }
         }
     });
+
+    // 强制重连设备
+    fastify.route({
+        method: 'POST',
+        url: '/device/:serial/reconnect',
+        schema: {
+            params: {
+                type: 'object',
+                properties: {
+                    serial: {type: 'string'}
+                }
+            }
+        },
+        handler: async (req: FastifyRequest<{ Params: { serial: string } }>, reply) => {
+            const {serial} = req.params;
+            try {
+                const transport = transportCache.get(serial);
+                if (transport) {
+                    req.log.info({serial}, 'Forcefully closing cached transport for reconnect');
+                    try {
+                        await transport.close();
+                    } catch (e) {
+                        req.log.warn({serial, error: e}, 'Error closing transport during reconnect');
+                    }
+                    transportCache.delete(serial);
+                }
+                
+                // 如果是 TCP 设备，可以尝试断开其直连，但由于 transport 已经关闭，下一次获取将建立新连接
+                // 返回成功即可
+                return { success: true, message: 'Transport cleared and connection reset' };
+            } catch (error) {
+                req.log.error(error, "Failed to reconnect device");
+                return reply.code(500).send({error: "Failed to reconnect device"});
+            }
+        }
+    });
 }
 
 async function parseDeviceInfo(adb: Adb, fastify: FastifyInstance): Promise<DeviceInfo> {
