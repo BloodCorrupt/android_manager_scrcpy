@@ -173,28 +173,33 @@ export default function DeviceDetail() {
 
                 const adb = new Adb(transport);
 
+                const scrcpyOptions: any = {
+                    videoBitRate: bitrate,
+                    displayId: 0,
+                    maxFps: 60,
+                    videoSource: "display",
+                    videoCodec: "h264",
+                    audio: true,
+                    // audioCodec: "opus",
+                    // audioBitRate: 128000,
+                    control: true,
+                    tunnelForward: true,
+                    stayAwake: true,
+                    powerOffOnClose: false,
+                    powerOn: false,
+                    clipboardAutosync: true,
+                    sendDeviceMeta: true,
+                    cleanup: true
+                };
+                
+                if (maxSize > 0) {
+                    scrcpyOptions.maxSize = maxSize;
+                }
+
                 const scrcpy = await AdbScrcpyClient.start(
                     adb,
                     DefaultServerPath,
-                    new AdbScrcpyOptions3_3_3({
-                        videoBitRate: bitrate,
-                        maxSize: maxSize > 0 ? maxSize : undefined,
-                        displayId: 0,
-                        maxFps: 60,
-                        videoSource: "display",
-                        videoCodec: "h264",
-                        audio: true,
-                        // audioCodec: "opus",
-                        // audioBitRate: 128000,
-                        control: true,
-                        tunnelForward: true,
-                        stayAwake: true,
-                        powerOffOnClose: false,
-                        powerOn: false,
-                        clipboardAutosync: true,
-                        sendDeviceMeta: true,
-                        cleanup: true
-                    }),
+                    new AdbScrcpyOptions3_3_3(scrcpyOptions),
                 );
 
                 // 保存 scrcpy 客户端和控制器引用
